@@ -205,6 +205,14 @@ Main collections & relations:
 
 ---
 
+
+## 👥 Contributors  
+
+- [Abrar Khatib Lajim](https://github.com/AbrarBb) — Backend & Documentation
+- [Saiful Islam](https://github.com/XhAfAn1) — Project Lead & Mobile App Development  
+- [Umme Muqaddisa](https://github.com/ummeMuqaddisa) — UI/UX & Database Design  
+
+
 ## ⚙️ Setup & Installation
 
 1. Clone the repository  
