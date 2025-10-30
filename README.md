@@ -45,7 +45,7 @@ Unlike traditional SOS apps, ResQMob not only sends alerts but also:
 - Predicts risky situations using **ML & geofencing**  
 - Connects users with **police stations & verified responders**  
 - Provides a **community feed** for safety discussions  
-- Collects **feedback** for system improvement  
+- Collects **feedback** for system improvement 
 
 ---
 
@@ -98,7 +98,8 @@ Unlike traditional SOS apps, ResQMob not only sends alerts but also:
 | **Notifications**  | Firebase Cloud Messaging (FCM) |
 | **APIs**           | HTTP (Amar Sheba SMS API, Google Maps API) |
 
----
+
+
 
 ## 🏗 System Architecture
                 ┌─────────────────────────┐
@@ -204,7 +205,8 @@ Main collections & relations:
 - **Emergency Alert Screen** – Send & track alerts  
 - **Community Feed** – Posts & comments  
 - **Map View** – Safe/Danger zones  
-- **Feedback Form** – Rate and review responses  
+- **Feedback Form** – Rate and review responses
+
 
 
 ---
@@ -212,9 +214,9 @@ Main collections & relations:
 
 ## 👥 Contributors  
 
-- [Abrar Khatib Lajim](https://github.com/AbrarBb) — Backend & Documentation
+- [Abrar Khatib Lajim](https://github.com/AbrarBb) — Backend & DocumentationUI/UX & Database Design  
 - [Saiful Islam](https://github.com/XhAfAn1) — Project Lead & Mobile App Development  
-- [Umme Muqaddisa](https://github.com/ummeMuqaddisa) — UI/UX & Database Design  
+- [Umme Muqaddisa](https://github.com/ummeMuqaddisa) — 
 
 
 ## ⚙️ Setup & Installation
@@ -223,4 +225,5 @@ Main collections & relations:
    ```bash
    git clone https://github.com/XhAfAn1/Emergency-SOS-System.git
    cd Emergency-SOS-System
+
 
