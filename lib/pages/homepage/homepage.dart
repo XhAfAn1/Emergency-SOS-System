@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -7,36 +8,38 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:resqmob/Class%20Models/sms.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:resqmob/backend/sms.dart';
 import 'package:resqmob/Class%20Models/social%20model.dart';
 import 'package:resqmob/backend/permission%20handler/location%20services.dart';
 import 'package:resqmob/pages/alert%20listing/view%20active%20alerts.dart';
-import 'package:resqmob/pages/alert%20listing/view%20my%20alerts.dart';
-import 'package:resqmob/pages/homepage/safe%20road.dart';
+import 'package:resqmob/pages/safe%20map/safe%20road.dart';
 import 'package:resqmob/pages/profile/profile.dart';
-import 'package:resqmob/test.dart';
 import '../../Class Models/alert.dart';
 import '../../Class Models/pstation.dart';
 import '../../Class Models/user.dart';
-import '../../backend/firebase config/Authentication.dart';
 import 'package:resqmob/backend/api keys.dart';
 import '../../backend/firebase config/firebase message.dart';
+import '../../backend/widget_service.dart';
 import '../../modules/coordinate to location.dart';
 import '../../modules/distance.dart';
-import '../community/community.dart';
 import 'drawer.dart';
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+  final navlat;
+  final navlng;
+  MyHomePage({super.key,this.navlat,this.navlng});
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+
   // Initial camera position
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(23.8103, 90.4125), // Dhaka coordinates
@@ -46,7 +49,7 @@ class _MyHomePageState extends State<MyHomePage> {
   GoogleMapController? _mapController;
   Position? _currentPosition;
   bool _isLoading = false;
-  final Set<Marker> _markers = {}; // Holds all markers for the map
+  final Set<Marker> _markers = {};
   StreamSubscription<Position>? _positionStream;
   StreamSubscription<RemoteMessage>? _notificationSub;
   StreamSubscription<DocumentSnapshot>? _alertListener;
@@ -55,6 +58,7 @@ class _MyHomePageState extends State<MyHomePage> {
   var imageLink;
   LatLng? _navigationDestination;
   bool isDanger = false;
+  bool isBanned = false;
   final Set<Polyline> _polylines = {};
 
   // Add these flags to track map state more robustly
@@ -65,6 +69,12 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    //home widget init
+    WidgetService.initialize();
+    WidgetService.onDataReceived = _handleWidgetData;
+    _checkForWidgetData();
+
+
     _getCurrentLocation();
     LocationService().getInitialPosition(context);
     _checkInitialMessage();
@@ -74,8 +84,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _handleMessage(message);
     });
 
-    _notificationSub =
-        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    _notificationSub = FirebaseMessaging.onMessage.listen((RemoteMessage message) {
           if (!mounted) return;
           if (message.notification != null) {
             print(
@@ -89,6 +98,11 @@ class _MyHomePageState extends State<MyHomePage> {
           }
         });
 
+    if(widget.navlat!=null && widget.navlng!=null){
+      getnavpoly();
+         }
+
+
     _positionStream = Geolocator.getPositionStream(
       locationSettings: LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation,
@@ -97,12 +111,29 @@ class _MyHomePageState extends State<MyHomePage> {
     ).listen((Position pos) async {
       if (!mounted) return;
 
-      // Safe camera animation with proper checks and error recovery
       _safeAnimateTo(pos);
 
       setState(() {
         _currentPosition = pos;
       });
+
+
+
+      try {
+        if (isDanger) {
+          await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(FirebaseAuth.instance.currentUser!.uid)
+              .update({
+            "lat": pos.latitude,
+            "lng": pos.longitude,
+            "lastUpdated": FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (e) {
+        print("⚠️ Error updating location: $e");
+      }
+
 
       print('1');
       print(_navigationDestination);
@@ -131,14 +162,21 @@ class _MyHomePageState extends State<MyHomePage> {
         if (doc.exists && mounted) {
           setState(() {
             isDanger = doc.get('isInDanger');
+            final ban= doc.get('token');
+            if(ban=='normal') isBanned=false;
+            else if(ban=='blocked')
+              isBanned=true;
           });
           imageLink = doc.get("profileImageUrl");
           currentUser = UserModel.fromJson(doc.data() as Map<String, dynamic>);
         }
       }).catchError((e) => print('Error: $e'));
+
     } catch (e) {
       print(e);
     }
+
+
   }
 
   @override
@@ -166,6 +204,73 @@ class _MyHomePageState extends State<MyHomePage> {
 
     super.dispose();
   }
+
+getnavpoly()async{
+    await _getCurrentLocation();
+    if (_currentPosition != null) {
+
+      _navigationDestination = LatLng(widget.navlat, widget.navlng);
+      await _getDirections(
+        LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+        _navigationDestination!,
+      );
+    }
+    final marker = Marker(
+      markerId: MarkerId(DateTime.now().toString()),
+      position: LatLng(widget.navlat,  widget.navlng),
+      icon:BitmapDescriptor.defaultMarkerWithHue(
+          BitmapDescriptor.hueAzure),
+      onTap: null,
+    );
+    _markers.add(marker);
+    setState(() {
+
+    });
+}
+  //home widget init
+  void _handleWidgetData(String data) {
+    if (mounted) {
+      activeFromWidget(data);
+    }
+  }
+
+  Future<void> _checkForWidgetData() async {
+    final data = await WidgetService.getInitialData();
+    if (data != null && mounted) {
+      activeFromWidget(data);
+    }
+  }
+
+  void activeFromWidget(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        content: Text('Activating Alert System...'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    print(message);
+    if(message=='ACTIVE'){
+      try{
+        if (!mounted) return;
+        AlertSystem(context);
+      }catch(e){
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            content: Text(e.toString()),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+
+
 
 // map position initialization
   void _reinitializeMapController() {
@@ -237,7 +342,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
 
   Future<void> _safeAnimateCamera(CameraUpdate cameraUpdate,
-      {int timeoutSeconds = 5}) async {
+      {int timeoutSeconds = 5}) async
+  {
     if (!mounted || _isControllerDisposed || !_isMapReady ||
         _mapController == null) return;
 
@@ -281,45 +387,50 @@ class _MyHomePageState extends State<MyHomePage> {
         .listen((querySnapshot) {
       if (!mounted) return;
 
-      Set<Marker> updatedMarkers = {};
-      for (var doc in querySnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final docId = doc.id;
+      setState(() {
+        for (var change in querySnapshot.docChanges) {
+          final doc = change.doc;
+          final data = doc.data() as Map<String, dynamic>?;
+          final docId = doc.id;
 
-        if (docId == currentUserId ||
-            !data.containsKey('location') ||
-            data['location'] == null ||
-            data['admin'] == true ||
-            data['status'] == 'safe' ||
-            data['userId'] == currentUserId) {
-          continue;
+          if (data == null ||
+              docId == currentUserId ||
+              !data.containsKey('location') ||
+              data['location'] == null ||
+              data['admin'] == true ||
+              data['status'] == 'safe' ||
+              data['userId'] == currentUserId) {
+            _markers.removeWhere((m) => m.markerId.value == docId);
+            continue;
+          }
+
+          final location = data['location'];
+          final latitude = location['latitude'];
+          final longitude = location['longitude'];
+
+          if (latitude != null && longitude != null) {
+            final marker = Marker(
+              markerId: MarkerId(docId),
+              position: LatLng(latitude, longitude),
+              icon: data['severity'] == 1
+                  ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow)
+                  : BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+              onTap: () {
+                _showNavigationBottomSheet(LatLng(latitude, longitude), data);
+              },
+            );
+
+            if (change.type == DocumentChangeType.added ||
+                change.type == DocumentChangeType.modified) {
+              // update or insert marker
+              _markers.removeWhere((m) => m.markerId.value == docId);
+              _markers.add(marker);
+            } else if (change.type == DocumentChangeType.removed) {
+              _markers.removeWhere((m) => m.markerId.value == docId);
+            }
+          }
         }
-
-        print(data.toString());
-        final location = data['location'];
-        final latitude = location['latitude'];
-        final longitude = location['longitude'];
-
-        if (latitude != null && longitude != null) {
-          final marker = Marker(
-            markerId: MarkerId(docId),
-            position: LatLng(latitude, longitude),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueRose),
-            onTap: () {
-              _showNavigationBottomSheet(LatLng(latitude, longitude), data);
-            },
-          );
-          updatedMarkers.add(marker);
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _markers.clear();
-          _markers.addAll(updatedMarkers);
-        });
-      }
+      });
     }, onError: (e) {
       debugPrint("Marker listener error: $e");
     });
@@ -340,7 +451,9 @@ class _MyHomePageState extends State<MyHomePage> {
       _checkArrival(_currentPosition!, LatLng(lat, lng));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Current location not available')),
+        const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Current location not available')),
       );
     }
   }
@@ -353,15 +466,15 @@ class _MyHomePageState extends State<MyHomePage> {
       destination.longitude,
     );
 
-    if (distance < 5) { // You can tune this threshold
+    if (distance < 20) { // You can tune this threshold
       setState(() {
         _navigationDestination = null;
         _polylines.clear();
       });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+              behavior: SnackBarBehavior.floating,
               content: Text('You have arrived at your destination!')),
         );
       }
@@ -404,7 +517,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Alert is marked safe. Navigation stopped.')),
+        const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Alert is marked safe. Navigation stopped.')),
       );
     }
     _alertListener?.cancel();
@@ -455,37 +570,6 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _fitMarkersInView() {
-    if (_markers.isEmpty || _mapController == null || !_isMapReady ||
-        !mounted || _isControllerDisposed) return;
-
-    double minLat = _markers.first.position.latitude;
-    double maxLat = _markers.first.position.latitude;
-    double minLng = _markers.first.position.longitude;
-    double maxLng = _markers.first.position.longitude;
-
-    for (Marker marker in _markers) {
-      minLat =
-      minLat < marker.position.latitude ? minLat : marker.position.latitude;
-      maxLat =
-      maxLat > marker.position.latitude ? maxLat : marker.position.latitude;
-      minLng =
-      minLng < marker.position.longitude ? minLng : marker.position.longitude;
-      maxLng =
-      maxLng > marker.position.longitude ? maxLng : marker.position.longitude;
-    }
-
-    _safeAnimateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng),
-        ),
-        100.0, // padding
-      ),
-    );
-  }
-
   Future<void> _getDirections(LatLng origin, LatLng destination) async {
     if (!mounted) return;
 
@@ -504,7 +588,9 @@ class _MyHomePageState extends State<MyHomePage> {
         debugPrint("❌ HTTP error: ${response.statusCode}");
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('HTTP Error: ${response.statusCode}')),
+            SnackBar(
+                behavior: SnackBarBehavior.floating,
+                content: Text('HTTP Error: ${response.statusCode}')),
           );
         }
         return;
@@ -515,7 +601,9 @@ class _MyHomePageState extends State<MyHomePage> {
         debugPrint("❌ Directions API error: ${data['status']}");
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Directions API Error: ${data['status']}')),
+            SnackBar(
+                behavior: SnackBarBehavior.floating,
+                content: Text('Directions API Error: ${data['status']}')),
           );
         }
         return;
@@ -576,6 +664,7 @@ class _MyHomePageState extends State<MyHomePage> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+              behavior: SnackBarBehavior.floating,
               content: Text('Something went wrong while fetching directions.')),
         );
       }
@@ -605,6 +694,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
 //need upgrade
+
   void _showNavigationBottomSheet(LatLng destination, Map<String, dynamic> data) async {
     final userId = data['userId'];
     if (userId == null) {
@@ -738,8 +828,13 @@ class _MyHomePageState extends State<MyHomePage> {
                     user.isInDanger == true ? 'In Danger' : 'Safe',
                     user.isInDanger == true ? Icons.warning_outlined : Icons.check_circle_outline,
                   ),
+                  const SizedBox(height: 16),
+                  _buildInfoCard(
+                    'Severity',
+                    data['severity'] == 1 ? 'Low' : data['severity'] == 2 ? 'Medium' : 'High',
+                    Icons.warning_amber_rounded,
+                  ),
                   const SizedBox(height: 32),
-
                   // Navigation Button
                   SizedBox(
                     width: double.infinity,
@@ -747,7 +842,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       icon: const Icon(Icons.navigation, size: 20),
                       label: const Text('Start Navigation'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3B82F6),
+                        backgroundColor: Color(0xff25282b),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -809,10 +904,10 @@ class _MyHomePageState extends State<MyHomePage> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFF3B82F6).withOpacity(0.1),
+              color: Color(0xff25282b).withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: const Color(0xFF3B82F6), size: 20),
+            child: Icon(icon, color: Color(0xff25282b), size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -846,10 +941,27 @@ class _MyHomePageState extends State<MyHomePage> {
 
 
   // Main alert function
-  void AlertSystem() async {
+  void AlertSystem(BuildContext context) async {
+    if (_currentPosition == null) {
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //behavior: SnackBarBehavior.floating,
+      //   SnackBar(content: Text("Waiting for location...")),
+      // );
+      await _getCurrentLocation(); // Refresh location
+      if (_currentPosition == null) return;
+    }
     final data = await FirebaseFirestore.instance.collection('Users').doc(FirebaseAuth.instance.currentUser?.uid).get();
     UserModel user = UserModel.fromJson(data.data()!);
-    final length = await FirebaseFirestore.instance.collection('Alerts').get().then((value) => value.docs.length + 10);
+
+    final snapshotcount = await FirebaseFirestore.instance
+        .collection('Alerts')
+        .count()
+        .get();
+    int length = snapshotcount.count!;
+    print(length);
+    length= length+15;
+    print(length);
+
     String address = await getAddressFromLatLng(_currentPosition!.latitude, _currentPosition!.longitude);
 
     final alert = AlertModel(
@@ -858,10 +970,11 @@ class _MyHomePageState extends State<MyHomePage> {
         userName: user.name,
         userPhone: user.phoneNumber,
         severity: 1,
+        etype: "Unknown",
         status: 'danger',
         timestamp: Timestamp.now(),
         address: address,
-        message: 'help',
+        message: user.msg != "" ? user.msg : "initial help message",
         location: {
           'latitude': _currentPosition!.latitude,
           'longitude': _currentPosition!.longitude,
@@ -900,7 +1013,7 @@ class _MyHomePageState extends State<MyHomePage> {
             FirebaseApi().sendNotification(
                 token: fcm,
                 title: 'Alert',
-                body: 'help!!!',
+                body: 'Need help!!!',
                 userId: ouser.id,
                 latitude: _currentPosition?.latitude,
                 longitude: _currentPosition?.longitude,
@@ -919,6 +1032,7 @@ class _MyHomePageState extends State<MyHomePage> {
         phoneNumbers.add(contact.phoneNumber);
       }
       // sendSos(phoneNumbers, '${user.name}', _currentPosition!.latitude, _currentPosition!.longitude);
+
       print('sos sent to emergency contacts');
 
       // Police station
@@ -949,6 +1063,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            behavior: SnackBarBehavior.floating,
             content: Text(
                 "Informed to Police station: ${nearStation!.stationName}, ${min.toStringAsFixed(2)} meter away")));
       }
@@ -974,6 +1089,7 @@ class _MyHomePageState extends State<MyHomePage> {
           temp: true,
           createdAt: alert.timestamp.toDate(),
           upvotes: [],
+          downvotes: [],
           commentCount: 0);
       await FirebaseFirestore.instance.collection('social').doc(alert.alertId).set(post.toJson());
       print('community post created');
@@ -1113,7 +1229,10 @@ class _MyHomePageState extends State<MyHomePage> {
                   body: 'help meeeeeeeeeeeeee',
                   userId: ouser.id,
                   latitude: _currentPosition?.latitude,
-                  longitude: _currentPosition?.longitude);
+                  longitude: _currentPosition?.longitude,
+                  distance: distance.toStringAsFixed(2),
+                  alertId: alert2.alertId
+              );
               print('alert sent to ${ouser.name}, distance: $distance');
               notified = notified + 1;
             }
@@ -1135,21 +1254,22 @@ class _MyHomePageState extends State<MyHomePage> {
             temp: true,
             createdAt: alert2.timestamp.toDate(),
             upvotes: [],
+            downvotes: [],
             commentCount: 0);
         await FirebaseFirestore.instance.collection('social').doc(alert2.alertId).set(post.toJson());
         print('community post updated');
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Severity increased to ${alert2.severity + 1}")));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar( behavior: SnackBarBehavior.floating,content: Text("Severity increased to ${alert2.severity + 1}")));
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Severity already at maximum")));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(behavior: SnackBarBehavior.floating,content: Text("Severity already at maximum")));
         }
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Something went wrong")));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(behavior: SnackBarBehavior.floating,content: Text("Something went wrong")));
       }
     }
   }
@@ -1162,8 +1282,8 @@ class _MyHomePageState extends State<MyHomePage> {
       right: 0,
       child: Container(
         padding: EdgeInsets.only(
-          top: MediaQuery.of(context).padding.top + 16,
-          left: 20,
+          top: MediaQuery.of(context).padding.top + 8,
+          left: 12,
           right: 20,
           bottom: 16,
         ),
@@ -1264,7 +1384,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         backgroundImage: (imageLink != null && imageLink.isNotEmpty) ? NetworkImage(imageLink) : null,
                         backgroundColor: const Color(0xFFF3F4F6),
                         child: (imageLink == null || imageLink.isEmpty)
-                            ? const Icon(Icons.person, size: 16, color: Color(0xFF6B7280))
+                            ? const HugeIcon(icon: HugeIcons.strokeRoundedUser03, color: Colors.grey,size: 16,)
                             : null,
                       ),
                     ),
@@ -1406,30 +1526,29 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
 
-
-
-
-
   int _currentIndex = 3;
-
 
   @override
   Widget build(BuildContext context) {
 
     final List<Widget>  _pages = [
       ViewActiveAlertsScreen(
+        currentUser: currentUser,
         currentPosition: _currentPosition,
         onNavigate: (lat, lng, alertId) {
           handleNavigationRequest(lat, lng, alertId);
           setState(() => _currentIndex = 3);
         },
       ),
-      AlertHistoryScreen(),
-      // ... other pages
+      SafetyMap(currentUser: currentUser,),
+
     ];
     return Scaffold(
-      backgroundColor: isDanger? Color(0xFFFFC5C5): Colors.white,
+      backgroundColor: isDanger? (_currentIndex!=3?(_currentIndex==1?Color(0xFFEBE3CD):Color(
+          0xFFFFFFFF)):Color(0xFFFFC5C5)): (_currentIndex==1?Color(0xFFEBE3CD):Color(
+          0xFFFFFFFF)),
       drawer: AppDrawer(
+        activePage: 1,
         currentUser: currentUser,
       ),
       body: (_currentIndex == 3)
@@ -1684,30 +1803,34 @@ class _MyHomePageState extends State<MyHomePage> {
           if (isDanger) _buildAlertOverlay(),
           if (_isLoading)
             const Center(
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(
+                color: Colors.black,
+                strokeWidth: 3,
+              ),
             ),
 
           // Control Buttons
           Positioned(
-            bottom: 35,
+            bottom: 40,
             left: 16,
             child: Column(
               children: [
-                FloatingActionButton(
-                  backgroundColor: Colors.white,
-                  onPressed: (){
-                    sendSos(['01839228924'] , 'saif', 0, 0);
-                  },
-                  heroTag: "location_3",
-                  child: Text('Test'),
-                ),
-                const SizedBox(height: 8),
+                // FloatingActionButton(
+                //   backgroundColor: Colors.white,
+                //   onPressed: (){
+                //    sendSos(['01839228924'] , 'saif', 0, 0);
+                //
+                //   },
+                //   heroTag: "location_3",
+                //   child: Text('Test'),
+                // ),
+                // const SizedBox(height: 8),
                 FloatingActionButton(
                   mini: true,
                   backgroundColor: Colors.white,
                   onPressed: _getCurrentLocation,
                   heroTag: "location_1",
-                  child: Icon(Icons.my_location, color: Colors.blue.shade700),
+                  child: HugeIcon(icon:HugeIcons.strokeRoundedGps01 , color: Colors.black),
                 ),
                 const SizedBox(height: 8),
                 FloatingActionButton(
@@ -1718,7 +1841,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       CameraUpdate.newCameraPosition(_initialPosition),
                     );},
                   heroTag: "location_2",
-                  child: Icon(Icons.home, color: Colors.blue.shade700),
+                  child:HugeIcon(icon:HugeIcons.strokeRoundedMapsLocation02 , color: Colors.black),
                 ),
               ],
             ),
@@ -1728,84 +1851,154 @@ class _MyHomePageState extends State<MyHomePage> {
             bottom: 35,
             right: 16,
             child: FloatingActionButton(
-                  backgroundColor: Colors.blue,
-                  onPressed: ()async{
+              backgroundColor: Color(0xFF1F2937),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Mark as Safe',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    content: const Text(
+                      'Are you sure you want to mark yourself as safe? This will notify your emergency contacts.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF374151),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: Color(0xFF6B7280),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      ElevatedButton(
 
-                    try {
-                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                        child: const Text('Yes, I\'m Safe'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF1F2937),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        ),
+                        onPressed: () => Navigator.of(context).pop(true),
+                      ),
+                    ],
+                  ),
+                );
 
-                      // Update user's isInDanger flag
-                      await FirebaseFirestore.instance
-                          .collection('Users')
-                          .doc(uid)
-                          .update({
-                        "isInDanger": false,
-                      });
+                if (confirm != true) return; // user cancelled
 
-                      final alertSnapshot = await FirebaseFirestore.instance
-                          .collection('Alerts')
-                          .where('userId', isEqualTo: uid).where('status',isEqualTo: 'danger')
-                          .get();
-                      print(alertSnapshot.docs.length);
-                      if(alertSnapshot.docs.length==0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text("No Alert found from you."))
-                        );
-                        return;
-                      }
-                      // Update each alert's status to 'safe'
-                      for (var doc in alertSnapshot.docs) {
-                        await doc.reference.update({'status': 'safe','safeTime': Timestamp.now()});
-                      }
+                try {
+                  final uid = FirebaseAuth.instance.currentUser?.uid;
 
-                      setState(() {
-                        isDanger = false;
-                      });
+                  // Update user's isInDanger flag
+                  await FirebaseFirestore.instance
+                      .collection('Users')
+                      .doc(uid)
+                      .update({
+                    "isInDanger": false,
+                  });
+                  setState(() {
+                    isDanger = false;
+                  });
 
-                      //Temp community post delete
-                      String postId=alertSnapshot.docs.first.id;
-                      try {
+                  final alertSnapshot = await FirebaseFirestore.instance
+                      .collection('Alerts')
+                      .where('userId', isEqualTo: uid)
+                      .where('status', isEqualTo: 'danger')
+                      .get();
 
-                        final postRef = FirebaseFirestore.instance.collection('social').doc(postId);
-                        final commentsRef = postRef.collection('comments');
-
-                        final commentsSnapshot = await commentsRef.get();
-
-                        final batch = FirebaseFirestore.instance.batch();
-
-                        for (final doc in commentsSnapshot.docs) {
-                          batch.delete(doc.reference);
-                        }
-                        batch.delete(postRef);
-
-                        await batch.commit();
-
-                        print('Successfully deleted post $postId and all its comments');
-
-
-                      } catch (e) {
-                        print('Error deleting post and comments: $e');
-                        rethrow; // Re-throw to handle in calling code
-                      }
-
-
-
-
-                      // Optional: Show a snackbar confirmation
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Status updated to safe.")),
-                        );
-                      }
-
-                    } catch (e) {
-                      debugPrint("Error updating status: $e");
+                  if (alertSnapshot.docs.isEmpty) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          behavior: SnackBarBehavior.floating,
+                          content: Text("No Alert found from you."),
+                        ),
+                      );
                     }
+                    return;
+                  }
 
-                  },
-                  heroTag: "location",
-                  child: Text("Safe",style: TextStyle(color: Colors.white,fontSize: 16,fontWeight: FontWeight.bold),),
+                  // Update each alert's status to 'safe'
+                  for (var doc in alertSnapshot.docs) {
+                    await doc.reference.update({
+                      'status': 'safe',
+                      'safeTime': Timestamp.now(),
+                    });
+                  }
+
+
+
+                  // Temp community post delete
+                  String postId = alertSnapshot.docs.first.id;
+                  try {
+                    final postRef =
+                    FirebaseFirestore.instance.collection('social').doc(postId);
+                    final commentsRef = postRef.collection('comments');
+
+                    final commentsSnapshot = await commentsRef.get();
+
+                    final batch = FirebaseFirestore.instance.batch();
+
+                    for (final doc in commentsSnapshot.docs) {
+                      batch.delete(doc.reference);
+                    }
+                    batch.delete(postRef);
+
+                    await batch.commit();
+
+                    print('Successfully deleted post $postId and all its comments');
+                  } catch (e) {
+                    print('Error deleting post and comments: $e');
+                    rethrow;
+                  }
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        behavior: SnackBarBehavior.floating,
+                        content: Text("Status updated to safe."),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  debugPrint("Error updating status: $e");
+                }
+              },
+              heroTag: "location",
+              child: Text(
+                "Safe",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
+              ),
+            ),
 
           ),
 
@@ -1816,68 +2009,131 @@ class _MyHomePageState extends State<MyHomePage> {
         children: _pages,
       ),
       floatingActionButton: _currentIndex == 3
-          ? FloatingActionButton.large(
-        backgroundColor: Colors.red,
+          ?( !isBanned? FloatingActionButton.large(
+        backgroundColor: Color(0xffe04c6c),
         elevation: 0,
         onPressed: () {
-          AlertSystem(); // Call the alert system
+          AlertSystem(context);
         },
         child: Icon(
-          Icons.health_and_safety,
-          size: 55,
+          Icons.notifications_active_sharp,
+          size: 50,
           color: Colors.white,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-      )
+      ):FloatingActionButton.large(
+        backgroundColor: Colors.black87.withOpacity(0.2),
+        elevation: 0,
+        onPressed: (){
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              content: Row(
+                children: [
+                  Icon(
+                    Icons.warning_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('You are blocked from using this app')),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        },
+        child: Icon(
+          Icons.notifications_off,
+          size: 50,
+          color: Colors.black87,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+      ) )
           : FloatingActionButton(
-        backgroundColor: Colors.red,
+        backgroundColor: Color(0xffe04c6c),
         elevation: 0,
         onPressed: () {
           setState(() {
             _currentIndex = 3;
           });
         },
-        child: Icon(
-          Icons.home,
-          size: 35,
+        child: FaIcon(
+          FontAwesomeIcons.home,
+          size: 26,
           color: Colors.white,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
-        height: 60,
-        color: Color(0xFF3B82F6).withOpacity(0.6),
+        height: 89,
+        color: Color(0xff25282b),
         notchMargin: 8,
         shape: CircularNotchedRectangle(),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
             Expanded(
-              child: IconButton(
-                onPressed: () {
+              child: InkWell(
+                onTap: () {
                   setState(() {
                     _currentIndex = 0;
                   });
                 },
-                icon: Icon(Icons.crisis_alert_outlined, size: 28,color: Colors.white,),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _currentIndex = 0;
+                        });
+                      },
+                      icon: HugeIcon(icon: HugeIcons.strokeRoundedAlert01, color:_currentIndex==0? Colors.white:Colors.white.withOpacity(0.6),size: 30,),
+                    ),
+                    Text('Active Alerts', style: TextStyle(color:_currentIndex==0? Colors.white:Colors.white.withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w500))
+                  ],
+                ),
               ),
             ),
+
             Expanded(
-              child: TextButton(
-                onPressed: null,
-                child: Text(''),
+              child: InkWell(
+                onTap: null,
+                child: TextButton(
+                  onPressed: null,
+                  child: Text(''),
+                ),
               ),
             ),
+
             Expanded(
-              child: IconButton(
-                onPressed: () {
+              child: InkWell(
+                onTap: () {
                   setState(() {
                     _currentIndex = 1;
                   });
                 },
-                icon: Icon(Icons.safety_check_rounded, size: 28,color: Colors.white,),
+                child: Column(
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _currentIndex = 1;
+                          });
+                        },
+                        icon: HugeIcon(icon: HugeIcons.strokeRoundedNavigator01, color:_currentIndex==1? Colors.white:Colors.white.withOpacity(0.6),size: 30,),
+                      ),
+                      Text('Safe Map', style: TextStyle(color:_currentIndex==1? Colors.white:Colors.white.withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w500))
+                    ]
+                ),
               ),
             ),
           ],
@@ -1916,7 +2172,10 @@ class _MyHomePageState extends State<MyHomePage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => const Center(child: CircularProgressIndicator(
+        color: Colors.black,
+        strokeWidth: 3,
+      )),
     );
     print(data.toString());
     try {
@@ -1928,7 +2187,7 @@ class _MyHomePageState extends State<MyHomePage> {
       if (!alertSnapshot.exists || alertSnapshot.data() == null) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Alert not found')),
+          const SnackBar(behavior: SnackBarBehavior.floating,content: Text('Alert not found')),
         );
         return;
       }
@@ -1943,6 +2202,7 @@ class _MyHomePageState extends State<MyHomePage> {
         context: context,
         builder: (context) {
           return AlertDialog(
+            backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Text(
               title,
@@ -1968,6 +2228,10 @@ class _MyHomePageState extends State<MyHomePage> {
                   Row(children: [
                     const Text("Location: ", style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
                     Expanded(child: Text(alert.address ?? 'N/A', style: const TextStyle(color: Color(0xFF374151)))),
+                  ]),
+                  Row(children: [
+                    const Text("User: ", style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
+                    Expanded(child: Text(alert.userName ?? 'N/A', style: const TextStyle(color: Color(0xFF374151)))),
                   ]),
 
                   Row(children: [
@@ -2035,7 +2299,7 @@ class _MyHomePageState extends State<MyHomePage> {
       Navigator.of(context).pop(); // remove loader
       print("Error fetching alert: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load alert')),
+        const SnackBar(behavior: SnackBarBehavior.floating,content: Text('Failed to load alert')),
       );
     }
   }

@@ -8,8 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:resqmob/pages/authentication/signup.dart';
 import '../../Class Models/user.dart';
-import '../../backend/firebase config/Authentication.dart';
-import '../../main.dart';
 import '../admin/admin home.dart';
 import '../homepage/homepage.dart';
 
@@ -32,14 +30,12 @@ class _loginState extends State<login> {
   final TextEditingController email = TextEditingController();
   final TextEditingController password = TextEditingController();
 
-
-
   @override
   void initState() {
-    // TODO: implement initState
     _getCurrentLocation();
     super.initState();
   }
+
   @override
   void dispose() {
     email.dispose();
@@ -47,10 +43,8 @@ class _loginState extends State<login> {
     super.dispose();
   }
 
-
   Future<void> _getCurrentLocation() async {
-    if(defaultTargetPlatform == TargetPlatform.windows) return;
-
+    if (defaultTargetPlatform == TargetPlatform.windows) return;
 
     try {
       Position position = await Geolocator.getCurrentPosition(
@@ -59,42 +53,52 @@ class _loginState extends State<login> {
 
       setState(() {
         _currentPosition = position;
-
       });
-
     } catch (e) {
       if (!mounted) return;
       print('Error getting location: $e');
     }
   }
 
-  Future<bool> signin(
-      {required String email, required String password,context}) async {
-    try{
-      await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
+  Future<bool> signin({
+    required String email,
+    required String password,
+    required BuildContext context,
+  }) async {
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
       User? user = FirebaseAuth.instance.currentUser;
       print(FirebaseAuth.instance.currentUser);
 
-      final data=await FirebaseFirestore.instance.collection("Users").doc(user!.uid).get();
+      final data = await FirebaseFirestore.instance
+          .collection("Users")
+          .doc(user!.uid)
+          .get();
 
       final userData = data.data();
       if (userData == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("User document does not exist.")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("User document does not exist.")),
+          );
+        }
         return false;
       }
       UserModel cuser = UserModel.fromJson(userData);
 
       await Future.delayed(Duration(seconds: 1));
-      //fcm token update
+
+      // FCM token update
       if (kIsWeb || Platform.isAndroid || Platform.isIOS) {
         final fcmToken = await FirebaseMessaging.instance.getToken();
         if (fcmToken != null) {
           print(fcmToken);
           await FirebaseFirestore.instance
               .collection('Users')
-              .doc(user!.uid)
+              .doc(user.uid)
               .update({
             'fcmToken': fcmToken,
           });
@@ -114,14 +118,10 @@ class _loginState extends State<login> {
       }
       print(permission.toString());
 
-
-
-      //problem here
-
       if (_currentPosition != null) {
         await FirebaseFirestore.instance
             .collection("Users")
-            .doc(user!.uid)
+            .doc(user.uid)
             .update({
           'location': {
             'latitude': _currentPosition!.latitude,
@@ -131,53 +131,48 @@ class _loginState extends State<login> {
         });
       }
 
-
-
-      final isadmin=await cuser.admin;
+      final isadmin = await cuser.admin;
       print(cuser.admin);
-      if(isadmin)
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context)=>BasicFlutterMapPage(),));
-       else
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context)=>MyHomePage(),));
 
-    } on FirebaseAuthException catch (e){
+      if (mounted) {
+        if (isadmin) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => AdminDashboard()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => MyHomePage()),
+          );
+        }
+      }
+
+    } on FirebaseAuthException catch (e) {
       print(e.code.toString());
 
-      if(e.code=='user-not-found'){
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text( e.code.toString())) );
-        return false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.code.toString())),
+        );
       }
-      else if(e.code=='wrong-password'){
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text( e.code.toString())) );
-        return false;
-      }
-      else if(e.code=='invalid-email'){
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text( e.code.toString())) );
-        return false;
-      }
-      else{
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text( e.code.toString())) );
-        return false;
-      }
-
-
-
-    }
-    catch(e){
-
+      return false;
+    } catch (e) {
       print(e.toString());
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text( e.toString())) );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
       return false;
     }
     return true;
   }
 
-
   @override
   Widget build(BuildContext context) {
     if (loading) {
       return Scaffold(
+        appBar: AppBar(backgroundColor: Colors.white),
+        backgroundColor: Colors.white,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -205,7 +200,8 @@ class _loginState extends State<login> {
       );
     } else {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: AppBar(backgroundColor: Colors.white),
+        backgroundColor: Colors.white,
         body: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -213,23 +209,26 @@ class _loginState extends State<login> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // SizedBox(height: 40),
-                  // // Logo container
-                  // Container(
-                  //   height: 120,
-                  //   width: 120,
-                  //   decoration: BoxDecoration(
-                  //
-                  //     borderRadius: BorderRadius.circular(20),
-                  //     boxShadow: [
-                  //       BoxShadow(
-                  //         color: Colors.black.withOpacity(0.1),
-                  //         blurRadius: 10,
-                  //         offset: Offset(0, 4),
-                  //       ),
-                  //     ],
-                  //   ),
-                  // ),
+                  SizedBox(height: 40),
+                  // Logo container
+                  Container(
+                    height: 120,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('assets/rlogo.png'),
+                        fit: BoxFit.cover,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                  ),
                   SizedBox(height: 40),
                   // Welcome text
                   Text(
@@ -250,122 +249,112 @@ class _loginState extends State<login> {
                   ),
                   SizedBox(height: 40),
                   // Email field
-                  TextField(
-                    controller: email,
-                    decoration: InputDecoration(
-                      labelText: "Username",
-                      hintText: "Enter Username",
-                      prefixIcon: Icon(Icons.person_outline, color: Colors.black,),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 700),
+                    child: TextField(
+                      controller: email,
+                      decoration: InputDecoration(
+                        labelText: "Username",
+                        hintText: "Enter Username",
+                        prefixIcon: Icon(Icons.person_outline, color: Colors.black),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.black, width: 2),
+                        ),
+                        floatingLabelStyle: TextStyle(color: Colors.black),
+                        contentPadding: EdgeInsets.symmetric(vertical: 16),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Colors.black, width: 2),
-                      ),
-                      floatingLabelStyle: TextStyle(color: Colors.black,),
-                      contentPadding: EdgeInsets.symmetric(vertical: 16),
                     ),
                   ),
                   SizedBox(height: 20),
                   // Password field
-                  TextField(
-                    controller: password,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: "Password",
-                      hintText: "Enter Password",
-                      prefixIcon: Icon(Icons.lock_outline, color: Colors.black,),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.black,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 700),
+                    child: TextField(
+                      controller: password,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: "Password",
+                        hintText: "Enter Password",
+                        prefixIcon: Icon(Icons.lock_outline, color: Colors.black),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.black,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.black, width: 2),
+                        ),
+                        floatingLabelStyle: TextStyle(color: Colors.black),
+                        contentPadding: EdgeInsets.symmetric(vertical: 16),
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Colors.black, width: 2),
-                      ),
-                      floatingLabelStyle: TextStyle(color: Colors.black,),
-                      contentPadding: EdgeInsets.symmetric(vertical: 16),
                     ),
                   ),
-                  // SizedBox(height: 16),
-                  // // Forgot password
-                  // Align(
-                  //   alignment: Alignment.centerRight,
-                  //   child: TextButton(
-                  //     onPressed: () {
-                  //       // Forgot password functionality can be added here
-                  //     },
-                  //     child: Text(
-                  //       "Forgot Password?",
-                  //       style: TextStyle(
-                  //         color: Color(0xff093125),
-                  //         fontWeight: FontWeight.w500,
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
                   SizedBox(height: 24),
                   // Login button
                   SizedBox(
-                    width: double.infinity,
+                    width: 500,
                     height: 56,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: 400),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xff25282b),
+                          foregroundColor: Colors.white,
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
-                      ),
-                      onPressed: () async {
-                        setState(() {
-                          loading = true;
-                          btn_text = "Logging in...";
-                        });
+                        onPressed: () async {
+                          setState(() {
+                            loading = true;
+                            btn_text = "Logging in...";
+                          });
 
-                        isloading = await signin(
+                          bool success = await signin(
                             email: email.text.trim(),
                             password: password.text,
-                            context: context
-                        );
+                            context: context,
+                          );
 
-                        if (!isloading) {
-                          Timer(Duration(milliseconds: 50), () {
+                          if (mounted) {
                             setState(() {
                               loading = false;
                               btn_text = "Log in";
                             });
-                          });
-                        }
-                      },
-                      child: Text(
-                        btn_text,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          }
+                        },
+                        child: Text(
+                          btn_text,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -384,11 +373,9 @@ class _loginState extends State<login> {
                       ),
                       TextButton(
                         onPressed: () {
-
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (context) => signup()),
                           );
-
                         },
                         child: Text(
                           "Sign Up",

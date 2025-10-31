@@ -19,6 +19,7 @@ class _profileState extends State<profile> {
   final _contactNameController = TextEditingController();
   final _contactPhoneController = TextEditingController();
   final _contactRelationshipController = TextEditingController();
+  final _msgController = TextEditingController();
 
   bool isEditing = false;
   final _formKey = GlobalKey<FormState>();
@@ -33,7 +34,7 @@ class _profileState extends State<profile> {
   @override
   void dispose() {
     [_nameController, _phoneController, _addressController,
-      _contactNameController, _contactPhoneController, _contactRelationshipController]
+      _contactNameController, _contactPhoneController, _contactRelationshipController,_msgController]
         .forEach((controller) => controller.dispose());
     super.dispose();
   }
@@ -59,12 +60,15 @@ class _profileState extends State<profile> {
           'name': _nameController.text,
           'phoneNumber': _phoneController.text,
           'address': _addressController.text,
+          'msg': _msgController.text,
           'emergencyContacts': emergencyContacts.map((c) => c.toJson()).toList(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
         setState(() => isEditing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully')),
+          const SnackBar(
+              behavior: SnackBarBehavior.floating,
+              content: Text('Profile updated successfully')),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -194,7 +198,7 @@ class _profileState extends State<profile> {
         },
         style: ElevatedButton.styleFrom(
           padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          backgroundColor: Colors.blue,
+          backgroundColor: Color(0xFF1F2937),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
@@ -221,6 +225,7 @@ class _profileState extends State<profile> {
               _nameController.text = user.name;
               _phoneController.text = user.phoneNumber;
               _addressController.text = user.address;
+              _msgController.text = user.msg;
             }
 
             return Form(
@@ -469,6 +474,46 @@ class _profileState extends State<profile> {
                                 ),
                               );
                             }).toList(),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (!user.admin) ...[
+                    SizedBox(height: 24),
+                    // Emergency msg
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: Offset(0, 10))],
+                      ),
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+
+
+                                  Text("Emergency Message", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF212121))),
+
+                            ],
+                          ),
+                            Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.symmetric(vertical: 22),
+                              child: Column(
+                                children: [
+                                  isEditing ?
+                                  TextFormField(
+                                    controller: _msgController,
+                                    decoration: InputDecoration(labelText: 'Emergency Message', prefixIcon: Icon(Icons.sms_outlined), border: OutlineInputBorder()),
+                                  ) : _buildInfoRow(Icons.sms_outlined, "Emergency Message", user.msg),
+                                  ],
+                              ),
+                            )
+
                         ],
                       ),
                     ),

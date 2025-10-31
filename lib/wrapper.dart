@@ -30,9 +30,28 @@ class _WrapperState extends State<Wrapper> {
             future: FirebaseFirestore.instance.collection("Users").doc(userId).get(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
+                return  Scaffold(
                   backgroundColor: Colors.white,
-                  body: Center(child: CircularProgressIndicator()),
+                  body: Center(
+                    child: Container(
+                      height: 80,
+                      width: 80,
+                      decoration: BoxDecoration(
+                        image: DecorationImage(
+                          image: AssetImage('assets/rlogo.png'),
+                          fit: BoxFit.cover,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 );
               }
 
@@ -47,7 +66,7 @@ class _WrapperState extends State<Wrapper> {
               final isAdmin = data['admin'] ?? false;
 
               if (isAdmin) {
-                return const BasicFlutterMapPage();
+                return const AdminDashboard();
               }
 
               // Check for Windows-only block

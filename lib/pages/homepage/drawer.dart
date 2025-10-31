@@ -1,32 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:resqmob/Class%20Models/social%20model.dart';
-import 'package:resqmob/pages/homepage/safe%20road.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:resqmob/pages/homepage/setting.dart';
 import 'package:resqmob/pages/profile/profile.dart';
-
 import '../../Class Models/user.dart';
 import '../../backend/firebase config/Authentication.dart';
-import '../../test.dart';
-import '../admin/resources/police stations.dart';
+import '../admin/resources/feedback.dart';
+import '../station and hospitals/police stations.dart';
+import '../chatbot/help page.dart';
+import '../station and hospitals/hospitals.dart';
 import '../alert listing/my responded alert.dart';
+import '../alert listing/view my alerts.dart';
 import '../community/community.dart';
-import 'homepage.dart';
 
 class AppDrawer extends StatelessWidget {
   final UserModel? currentUser;
+  final int activePage;
 
-  const AppDrawer({Key? key, required this.currentUser}) : super(key: key);
+  const AppDrawer({Key? key, required this.currentUser, required this.activePage}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
       shape: const LinearBorder(),
-      width: 350,
+      width: 340,
       backgroundColor: Colors.white,
       child: ListView(
         children: [
 
           // User Profile Header
-          const SizedBox(height: 40),
+          const SizedBox(height:20),
           InkWell(
             onTap: () {
               Navigator.push(
@@ -36,17 +38,21 @@ class AppDrawer extends StatelessWidget {
               );
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: Colors.grey[200],
-                    backgroundImage: currentUser?.profileImageUrl != null
-                        ? NetworkImage(currentUser!.profileImageUrl!)
+                    backgroundImage: currentUser?.profileImageUrl != ""
+                        ? NetworkImage(currentUser!.profileImageUrl)
                         : null,
-                    child: currentUser?.profileImageUrl == null
-                        ? const Icon(Icons.person, size: 30, color: Colors.blue)
+                    child: currentUser?.profileImageUrl == ""
+                        ? HugeIcon(
+                      icon: HugeIcons.strokeRoundedUser03,
+                      size: 30,
+                      color: const Color(0xFF6B7280),
+                    )
                         : null,
                   ),
                   const SizedBox(width: 16),
@@ -75,26 +81,24 @@ class AppDrawer extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 30),
           const Divider(height: 10),
           const SizedBox(height: 5),
 
           // Main Drawer Items
-          _buildHighlightedItem(
-            icon: Icons.home,
+          _buildDrawerItem(
+            icon: HugeIcons.strokeRoundedHome03,
             title: 'Home',
-            isSelected: true,
+            isSelected: activePage==1?true:false,
             onTap: () {
               Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const MyHomePage()),
-              );
+              Navigator.popUntil(context, (route) => route.isFirst);
             },
           ),
           _buildDrawerItem(
-            icon: Icons.language,
+            icon: HugeIcons.strokeRoundedUserGroup03,
             title: 'Community',
+            isSelected: activePage==2?true:false,
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
@@ -105,44 +109,53 @@ class AppDrawer extends StatelessWidget {
             },
           ),
           _buildDrawerItem(
-            icon: Icons.navigation_outlined,
-            title: 'Navigation',
+            icon: HugeIcons.strokeRoundedNotification01,
+            title: 'My Alerts',
+            isSelected: activePage==3?true:false,
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => SafetyMap()),
+                MaterialPageRoute(builder: (context) => AlertHistoryScreen(currentUser: currentUser!)),
               );
             },
           ),
           _buildDrawerItem(
-            icon: Icons.history,
-            title: 'Responded',
+            icon: HugeIcons.strokeRoundedMailReply01,
+            title: 'My Responses',
+            isSelected: activePage==4?true:false,
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => RespondedAlertsScreen()),
+                MaterialPageRoute(builder: (context) => RespondedAlertsScreen(currentUser: currentUser!)),
               );
             },
           ),
           _buildDrawerItem(
-            icon: Icons.local_police,
+            icon: HugeIcons.strokeRoundedPoliceBadge,
             title: 'Police Stations',
+            isSelected: activePage==5?true:false,
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => AddPoliceStations()),
+                MaterialPageRoute(builder: (context) => AddPoliceStations(currentUser: currentUser,)),
               );
             },
           ),
           _buildDrawerItem(
-            icon: Icons.local_hospital,
+            icon: HugeIcons.strokeRoundedAmbulance,
             title: 'Nearby Hospitals',
+            isSelected: activePage==6?true:false,
             onTap: () {
+
               Navigator.pop(context);
-              // Navigate to hospitals screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => HospitalsPage(currentUser: currentUser,)),
+              );
+
             },
           ),
 
@@ -158,34 +171,70 @@ class AppDrawer extends StatelessWidget {
               ),
             ),
           ),
+          // Container(
+          //   padding: const EdgeInsets.only(left: 5),
+          //   margin: const EdgeInsets.only(right: 15),
+          //   child: ListTile(
+          //     leading: HugeIcon(
+          //       icon: HugeIcons.strokeRoundedSettings02,
+          //       color: Colors.black.withOpacity(0.4),
+          //       size: 23,
+          //     ),
+          //     title: Text(
+          //       'Settings',
+          //       style: TextStyle(
+          //         fontSize: 15,
+          //         color:Colors.black.withOpacity(0.4),
+          //         fontWeight: FontWeight.bold,
+          //       ),
+          //     ),
+          //     onTap:null,
+          //   ),
+          // ),
           _buildDrawerItem(
-            icon: Icons.settings,
+            isSelected: activePage==7?true:false,
+            icon: HugeIcons.strokeRoundedSettings02,
             title: 'Settings',
             onTap: () {
               Navigator.pop(context);
-              // Navigate to settings screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => Setting(currentUser: currentUser,)),
+              );
             },
           ),
           _buildDrawerItem(
-            icon: Icons.help,
+            icon: HugeIcons.strokeRoundedHelpSquare,
             title: 'Help & Tutorial',
+            isSelected: activePage==8?true:false,
             onTap: () {
               Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => GeminiChatPage(init_text: 'hello',isSupport: true,currentUser: currentUser!,)),
+              );
+
               // Navigate to help screen
             },
           ),
           _buildDrawerItem(
-            icon: Icons.feedback,
+            isSelected: activePage==9?true:false,
+            icon: HugeIcons.strokeRoundedComment01,
             title: 'Send Feedback',
             onTap: () {
               Navigator.pop(context);
-              // Navigate to feedback screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => FeedbackPage(currentUser: currentUser!)),
+              );
+
+
             },
           ),
 
           const Divider(height: 10, indent: 60),
           _buildDrawerItem(
-            icon: Icons.logout,
+            icon: HugeIcons.strokeRoundedLogoutSquare02,
             title: 'Sign Out',
             onTap: () {
               Navigator.pop(context);
@@ -207,7 +256,7 @@ class AppDrawer extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Version 1.2.03',
+                  'Version 1.2.25',
                   style: TextStyle(
                     fontSize: 10,
                     color: Colors.black54,
@@ -231,8 +280,8 @@ class AppDrawer extends StatelessWidget {
       padding: const EdgeInsets.only(left: 5),
       margin: const EdgeInsets.only(right: 15),
       decoration: isSelected
-          ? const BoxDecoration(
-        color: Color(0XFFE8F0FE),
+          ? BoxDecoration(
+        color: Color(0xff25282b),
         borderRadius: BorderRadius.only(
           topRight: Radius.circular(30),
           bottomRight: Radius.circular(30),
@@ -240,51 +289,16 @@ class AppDrawer extends StatelessWidget {
       )
           : null,
       child: ListTile(
-        leading: Icon(
-          icon,
-          color: isSelected ? const Color(0XFF3C88EC) : Colors.black.withOpacity(0.75),
+        leading: HugeIcon(
+          icon: icon,
+          color: isSelected ? Colors.white : Colors.black.withOpacity(0.75),
           size: 23,
         ),
         title: Text(
           title,
           style: TextStyle(
             fontSize: 15,
-            color: isSelected ? const Color(0XFF3C88EC) : Colors.black.withOpacity(0.75),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  Widget _buildHighlightedItem({
-    required IconData icon,
-    required String title,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      padding: const EdgeInsets.only(left: 5),
-      margin: const EdgeInsets.only(right: 15),
-      decoration: const BoxDecoration(
-        color: Color(0XFFE8F0FE),
-        borderRadius: BorderRadius.only(
-          topRight: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
-      ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: const Color(0XFF3C88EC),
-          size: 23,
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 15,
-            color: Color(0XFF3C88EC),
+            color: isSelected ? Colors.white : Colors.black.withOpacity(0.75),
             fontWeight: FontWeight.bold,
           ),
         ),

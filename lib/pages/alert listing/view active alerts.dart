@@ -3,17 +3,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-import 'package:latlong2/latlong.dart';
 import '../../Class Models/alert.dart';
+import '../../Class Models/user.dart';
 
 class ViewActiveAlertsScreen extends StatefulWidget {
   final Position? currentPosition;
   final Function(double lat, double lng, String alertId)? onNavigate;
+  final UserModel? currentUser;
 
   const ViewActiveAlertsScreen({
     Key? key,
     this.currentPosition,
-    this.onNavigate,
+    this.onNavigate,required this.currentUser,
   }) : super(key: key);
 
   @override
@@ -174,42 +175,69 @@ class _ViewActiveAlertsScreenState extends State<ViewActiveAlertsScreen> with Ti
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      //  drawer: AppDrawer(currentUser: widget.currentUser,activePage: 1,),
       backgroundColor: const Color(0xFFF8FAFC),
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverAppBar(),
-          _buildTabSection(),
-          _buildContentSection(),
-        ],
+      body: RefreshIndicator(
+        backgroundColor: Colors.white,
+        color: Colors.black,
+        strokeWidth:2,
+        onRefresh: () async{
+          await fetchActiveAlerts();
+          setState(() {
+
+          });
+        },
+
+        child: CustomScrollView(
+          slivers: [
+            _buildSliverAppBar(),
+            _buildTabSection(),
+            _buildContentSection(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSliverAppBar() {
     return SliverAppBar(
+      collapsedHeight: 70,
       expandedHeight: 120,
       floating: false,
       pinned: true,
       backgroundColor: Colors.white,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
-      // leading: IconButton(
-      //   icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1F2937), size: 20),
-      //   onPressed: () => Navigator.pop(context),
+      // leading: Padding(
+      //   padding: const EdgeInsets.only(left: 12.0,top: 10,right: 0),
+      //   child: Builder(
+      //     builder: (context) {
+      //       return GestureDetector(
+      //         onTap: () => Scaffold.of(context).openDrawer(),
+      //         child: Container(
+      //           width: 44,
+      //           height: 44,
+      //           decoration: BoxDecoration(
+      //             color: Colors.white,
+      //             borderRadius: BorderRadius.circular(12),
+      //             boxShadow: [
+      //               BoxShadow(
+      //                 color: Colors.black.withOpacity(0.1),
+      //                 blurRadius: 8,
+      //                 offset: const Offset(0, 2),
+      //               ),
+      //             ],
+      //           ),
+      //           child: const Icon(
+      //             Icons.menu_rounded,
+      //             color: Color(0xFF1F2937),
+      //             size: 24,
+      //           ),
+      //         ),
+      //       );
+      //     },
+      //   ),
       // ),
-      actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F4F6),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF6B7280), size: 20),
-            onPressed: fetchActiveAlerts,
-          ),
-        ),
-      ],
       flexibleSpace: FlexibleSpaceBar(
         title: const Text(
           'Active Alerts',
@@ -848,10 +876,10 @@ class _ViewActiveAlertsScreenState extends State<ViewActiveAlertsScreen> with Ti
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFF3B82F6).withOpacity(0.1),
+              color: Color(0xff25282b).withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: const Color(0xFF3B82F6), size: 20),
+            child: Icon(icon, color: Color(0xff25282b), size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(

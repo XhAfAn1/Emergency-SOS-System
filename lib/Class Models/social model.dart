@@ -9,6 +9,7 @@ class PostModel {
   final bool temp;
   final DateTime createdAt;
   final List<String> upvotes;
+  List<String> downvotes;
   final int commentCount;
 
   PostModel({
@@ -20,6 +21,7 @@ class PostModel {
     required this.temp,
     required this.createdAt,
     required this.upvotes,
+    required this.downvotes,
     required this.commentCount,
   });
 
@@ -33,6 +35,7 @@ class PostModel {
       temp: map['temp'] ?? false,
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       upvotes: List<String>.from(map['upvotes'] ?? []),
+      downvotes: List<String>.from(map['downvotes'] ?? []),
       commentCount: map['commentCount'] ?? 0,
     );
   }
@@ -46,6 +49,7 @@ class PostModel {
       'temp': temp,
       'createdAt': Timestamp.fromDate(createdAt),
       'upvotes': upvotes,
+      'downvotes': downvotes,
       'commentCount': commentCount,
     };
   }
@@ -60,6 +64,7 @@ class CommentModel {
   final String content;
   final DateTime createdAt;
   final List<String> upvotes;
+  final List<String> downvotes;
   final String? parentCommentId;
   final int replyCount;
 
@@ -72,6 +77,7 @@ class CommentModel {
     required this.content,
     required this.createdAt,
     required this.upvotes,
+    required this.downvotes,
     this.parentCommentId,
     required this.replyCount,
   });
@@ -86,6 +92,7 @@ class CommentModel {
       content: map['content'] ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       upvotes: List<String>.from(map['upvotes'] ?? []),
+      downvotes: List<String>.from(map['downvotes'] ?? []),
       parentCommentId: map['parentCommentId'],
       replyCount: map['replyCount'] ?? 0,
     );
@@ -100,6 +107,7 @@ class CommentModel {
       'content': content,
       'createdAt': Timestamp.fromDate(createdAt),
       'upvotes': upvotes,
+      'downvotes': downvotes,
       'parentCommentId': parentCommentId,
       'replyCount': replyCount,
     };

@@ -9,6 +9,7 @@ class UserModel {
   String address;
   DateTime createdAt;
   String token;
+  String msg;
   bool admin;
   bool isInDanger;
   Map<String, dynamic>? location;
@@ -23,13 +24,13 @@ class UserModel {
     this.phoneNumber = '',
     this.address = '',
     this.token = '',
+    this.msg = '',
     this.location,
     this.isInDanger = false,
     this.emergencyContacts = const [],
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  // Convert UserModel to JSON (for Firestore/Supabase)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -40,6 +41,7 @@ class UserModel {
       'phoneNumber': phoneNumber,
       'address': address,
       'token': token,
+      'msg': msg,
       'location': location,
       'isInDanger': isInDanger,
       'emergencyContacts': emergencyContacts.map((contact) => contact.toJson()).toList(),
@@ -47,7 +49,6 @@ class UserModel {
     };
   }
 
-  // Create UserModel from JSON (for fetching from Firestore/Supabase)
   factory UserModel.fromJson(Map<String, dynamic> json) {
     List<EmergencyContact> contacts = [];
     if (json['emergencyContacts'] != null) {
@@ -67,11 +68,11 @@ class UserModel {
       phoneNumber: json['phoneNumber'] ?? '',
       address: json['address'] ?? '',
       token: json['token'] ?? '',
+      msg: json['msg'] ?? '',
       isInDanger: json['isInDanger'],
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       location: json['location'] != null ? Map<String, dynamic>.from(json['location']) : null,
       emergencyContacts: contacts,
     );
   }
-
 }

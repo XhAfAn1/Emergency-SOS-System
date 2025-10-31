@@ -16,6 +16,7 @@ class AlertModel {
   final int severity;
   final int notified;
   final List<String>? responders;
+  final List<String>? reached;
   final Map<String, dynamic>? location;
 
   AlertModel({
@@ -34,6 +35,7 @@ class AlertModel {
     required this.severity,
     this.notified = 0,
      this.responders,
+    this.reached,
     this.location
   });
 
@@ -55,6 +57,7 @@ class AlertModel {
       severity: json['severity'] ?? 1,
       notified: json['notified'] ?? 0,
       responders: List<String>.from(json['responders'] ?? []),
+      reached: List<String>.from(json['reached'] ?? []),
       location: (json['location'] != null)
           ? {
         'latitude': json['location']['latitude']?.toDouble(),
@@ -82,6 +85,7 @@ class AlertModel {
       'severity': severity,
       'notified': notified,
       'responders': responders,
+      'reached': reached,
       'location': location,
     };
   }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ResQMob</string>
+    <string name="accessibility_service_description">
+        ResQMob listens to volume button patterns for emergency SOS.
+    </string>
+</resources>

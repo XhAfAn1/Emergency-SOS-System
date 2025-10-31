@@ -1,18 +1,11 @@
 import 'dart:io';
-
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:resqmob/pages/admin/admin%20home.dart';
-import 'package:resqmob/pages/authentication/login.dart';
-import 'package:resqmob/pages/homepage/homepage.dart';
-import 'package:resqmob/test.dart';
 import 'package:resqmob/wrapper.dart';
 import 'backend/firebase config/firebase message.dart';
 import 'backend/firebase config/firebase_options.dart';
-import 'backend/permission handler/background location.dart';
 
 
 
@@ -47,7 +40,6 @@ try {
     await FirebaseMessaging.instance.getToken(
         vapidKey: "BLwCHwZWPFgo5l5EpYdly8u2Fv0kxwVnTw1e3r5Fx21zbkFs5TapD369ibH1FQoa7mKbR-CyzfOHi0oQW2_OPR0");
   }
-
   }catch(e){
     print(e.toString());
 }
@@ -70,7 +62,6 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: Wrapper(),
-      //home: test(),
     );
   }
 }

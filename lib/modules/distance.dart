@@ -20,10 +20,3 @@ double calculateDistancewithmap(Map<String, dynamic> start, Map<String, dynamic>
     end['longitude'] as double,
   );
 }
-
-//
-// LatLng pointA = LatLng(23.772532008881708, 90.4253052285482);
-// LatLng pointB = LatLng(23.76922413394876, 90.42557442785835);
-//
-// double distanceInMeters = calculateDistance(pointA, pointB);
-// print("Distance: ${distanceInMeters.toStringAsFixed(2)} meters");

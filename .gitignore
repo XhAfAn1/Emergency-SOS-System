@@ -49,3 +49,4 @@ local.properties
 /android/app/src/main/AndroidManifest.xml
 /lib/backend/
 /functions/
+/lib/pages/chatbot/help page.dart
