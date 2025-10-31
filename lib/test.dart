@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reqmob/lib/Class Models/DangerZone.dart';
+import 'package:Emergency-SOS-System/lib/Class Models/Danger zone.dart';
 
 class DangerZone {
   final double lat;
@@ -130,3 +130,4 @@ void main() {
 
   });
 }
+
